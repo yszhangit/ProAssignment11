@@ -34,7 +34,7 @@ knitr::opts_chunk$set(echo = TRUE)
 data<-read.csv('./pml-training.csv',na.strings = c("#DIV/0!","NA",""))
 vali<-read.csv('./pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
 ```
-## Data Clean up
+## cleanup
 The first seven columns are timestamps and names, the published document stated the exercises are supervised by coach, we assume different person performed same way, in the end, we will need to predict "classe" base on detected movement data.
 
 
@@ -50,12 +50,22 @@ nearZeroVar(data)
 vali<-vali[, -(1:7)]
 napct<-sapply(vali, function(x) sum(is.na(x))/dim(vali)[1])
 vali <- vali[,napct < 0.9]
-nearZeroVar(vali)
 ```
-The result data is `echo dim(data)[1]` by `echo dim(data)[2]` data frame.
+The result data is `r dim(data)[1]` by `r dim(data)[2]` data frame.
+## preProcess
+```{r preProc}
+dummyVars(classe~., data=data)
+nearZeroVar(vali)
+cor90<-findCorrelation(cor(data[,-53]))
+cor90
+findLinearCombos(data[,-53])
+```
+The result data is `r dim(data)[1]` by `r dim(data)[2]` data frame, consider the data size, we will use 75% for training data and 25% for testing.
 
 ```{r split}
 ind_train<-createDataPartition(data$classe, p=0.75, list=F)
 training<-data[ind_train,]
 testing<-data[-ind_train,]
 ```
+
+## 

@@ -148,6 +148,7 @@ vali&lt;-read.csv('./pml-testing.csv',na.strings = c(&quot;#DIV/0!&quot;,&quot;N
 <h2>Data Clean up</h2>
 <p>The first seven columns are timestamps and names, the published document stated the exercises are supervised by coach, we assume different person performed same way, in the end, we will need to predict “classe” base on detected movement data.</p>
 <p>There are lot of missing data in both training and testing set, we have mark NA if the csv file content is NA, empty string, or #DIV/0!, we will remove the column is over 90% data is NA</p>
+<p>Also, verify there’s no near zero data columns.</p>
 <pre class="r"><code>data&lt;-data[, -(1:7)]
 napct&lt;-sapply(data, function(x) sum(is.na(x))/dim(data)[1])
 data &lt;- data[,napct &lt; 0.9]
@@ -158,6 +159,10 @@ napct&lt;-sapply(vali, function(x) sum(is.na(x))/dim(vali)[1])
 vali &lt;- vali[,napct &lt; 0.9]
 nearZeroVar(vali)</code></pre>
 <pre><code>## integer(0)</code></pre>
+<p>The result data is 19622 by 53 data frame.</p>
+<pre class="r"><code>ind_train&lt;-createDataPartition(data$classe, p=0.75, list=F)
+training&lt;-data[ind_train,]
+testing&lt;-data[-ind_train,]</code></pre>
 </div>
 
 

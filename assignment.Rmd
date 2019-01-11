@@ -1,0 +1,61 @@
+---
+title: "assignment"
+author: "yinshu zhang"
+date: "January 10, 2019"
+output: html_document
+---
+#### Declaimer
+This is peer-review-assignment of "Practical Machine Learning" from Coursera.org
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways
+
+The goal is to build model to classify correct or incorrect way of exercise, or "how well they do it". Their publish has more information about dataset  http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har 
+
+The data set can be downloaded from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv for training and testing and https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv as validation.
+
+
+
+```{r setup, include=FALSE}
+library(knitr)
+library(caret)
+library(parallel)
+library(doParallel)
+library(mlbench)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r download}
+#data<-read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',na.strings = c("#DIV/0!","NA",""))
+#vali<-read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
+#setwd('C:\Users\zhang\Desktop\R\ProAssignment11\ProAssignment11')
+data<-read.csv('./pml-training.csv',na.strings = c("#DIV/0!","NA",""))
+vali<-read.csv('./pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
+```
+## Data Clean up
+The first seven columns are timestamps and names, the published document stated the exercises are supervised by coach, we assume different person performed same way, in the end, we will need to predict "classe" base on detected movement data.
+
+
+There are lot of missing data in both training and testing set, we have mark NA if the csv file content is NA, empty string, or #DIV/0!, we will remove the column is over 90% data is NA
+
+Also, verify there's no near zero data columns.
+
+```{r cleanup}
+data<-data[, -(1:7)]
+napct<-sapply(data, function(x) sum(is.na(x))/dim(data)[1])
+data <- data[,napct < 0.9]
+nearZeroVar(data)
+vali<-vali[, -(1:7)]
+napct<-sapply(vali, function(x) sum(is.na(x))/dim(vali)[1])
+vali <- vali[,napct < 0.9]
+nearZeroVar(vali)
+```
+The result data is `echo dim(data)[1]` by `echo dim(data)[2]` data frame.
+
+```{r split}
+ind_train<-createDataPartition(data$classe, p=0.75, list=F)
+training<-data[ind_train,]
+testing<-data[-ind_train,]
+```

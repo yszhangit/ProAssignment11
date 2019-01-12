@@ -29,6 +29,7 @@ mod_rp<-train(classe ~ ., data=training, method="rpart", trControl = fitControl)
 # random forest
 set.seed(312)
 mod_r<-train(classe ~ ., data=training, method="rf", trControl = fitControl)
+mod_rp<-train(classe ~ ., data=training, method="rf", trControl = fitControl, preProcess = "pca")
 mod_r1<-train(classe ~ ., data=training1, method="rf", trControl = fitControl)
 # very little improvement mod_r1 over mod_r
 # boosting
@@ -43,6 +44,9 @@ registerDoSEQ()
 
 pred_rf <- predict(mod_rf, testing)
 confusionMatrix(testing$classe, pred_rf)
+
+pred_rp <- predict(mod_rp, testing)
+confusionMatrix(testing$classe, pred_rp)
 
 pred_r <- predict(mod_r, testing)
 pred_r1 <- predict(mod_r1, testing1)

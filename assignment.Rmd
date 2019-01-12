@@ -7,6 +7,8 @@ output: html_document
 #### Declaimer
 This is peer-review-assignment of "Practical Machine Learning" from Coursera.org
 
+Github repo: https://github.com/yszhangit/ProAssignment11
+
 ## Background
 
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways
@@ -28,39 +30,46 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r download}
-#data<-read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',na.strings = c("#DIV/0!","NA",""))
-#vali<-read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
+data<-read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',na.strings = c("#DIV/0!","NA",""))
+vali<-read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
 #setwd('C:\Users\zhang\Desktop\R\ProAssignment11\ProAssignment11')
-data<-read.csv('./pml-training.csv',na.strings = c("#DIV/0!","NA",""))
-vali<-read.csv('./pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
+#data<-read.csv('./pml-training.csv',na.strings = c("#DIV/0!","NA",""))
+#vali<-read.csv('./pml-testing.csv',na.strings = c("#DIV/0!","NA",""))
 ```
-## cleanup
+### cleanup
 The first seven columns are timestamps and names, the published document stated the exercises are supervised by coach, we assume different person performed same way, in the end, we will need to predict "classe" base on detected movement data.
 
+There are lot of missing data in both training and testing set, we have mark NA if the csv file content is NA, empty string, or #DIV/0!, it had made identify NA easier. Now we will remove the column is over 90% data is NA
 
-There are lot of missing data in both training and testing set, we have mark NA if the csv file content is NA, empty string, or #DIV/0!, we will remove the column is over 90% data is NA
-
-Also, verify there's no near zero data columns.
 
 ```{r cleanup}
 data<-data[, -(1:7)]
 napct<-sapply(data, function(x) sum(is.na(x))/dim(data)[1])
 data <- data[,napct < 0.9]
-nearZeroVar(data)
 vali<-vali[, -(1:7)]
 napct<-sapply(vali, function(x) sum(is.na(x))/dim(vali)[1])
 vali <- vali[,napct < 0.9]
 ```
 The result data is `r dim(data)[1]` by `r dim(data)[2]` data frame.
-## preProcess
+
+### preProcess
+
 ```{r preProc}
 dummyVars(classe~., data=data)
 nearZeroVar(vali)
+findLinearCombos(data[,-53])
 cor90<-findCorrelation(cor(data[,-53]))
 cor90
-findLinearCombos(data[,-53])
 ```
-The result data is `r dim(data)[1]` by `r dim(data)[2]` data frame, consider the data size, we will use 75% for training data and 25% for testing.
+
+Check if preProcessing is needed. from the output of above block, there's no near zero data, no need to create dummy variables, no high linear depenendent columns.
+
+there are high correlation columns, however, after testing, removing those columns didnt help improve the accuracy, check github code for reproducing comparsion.
+
+
+### Split
+
+consider the data size, we will use 75% for training data and 25% for testing.
 
 ```{r split}
 ind_train<-createDataPartition(data$classe, p=0.75, list=F)
@@ -68,4 +77,85 @@ training<-data[ind_train,]
 testing<-data[-ind_train,]
 ```
 
-## 
+### Train the models
+```{r train, cache=TRUE}
+# init parallel processing
+cl <- makeCluster(detectCores() -1)
+registerDoParallel(cl)
+# non repeating cross validation with 5 fold
+fitControl <- trainControl(method="cv", number = 5, allowParallel = T)
+# 
+set.seed(312)
+mod_rp<-train(classe ~ ., data=training, method="rpart", trControl = fitControl)
+# random forest
+set.seed(312)
+mod_r<-train(classe ~ ., data=training, method="rf", trControl = fitControl)
+set.seed(312)
+mod_rpca<-train(classe ~ ., data=training, method="rf", trControl = fitControl, preProcess="pca")
+# boosting
+set.seed(312)
+mod_b <- train(classe ~ ., data=training, method="gbm", verbose=F, trControl=fitControl)
+
+stopCluster(cl)
+registerDoSEQ()
+```
+
+We will experiment four different methods, simple tree using recursive partition, random forest, random forest with PCA preprocessing, and boosting. In order to imporve training performance, enable parallelism in fitControl.
+
+### Model accuracy
+#### recursive partition
+```{r rpart}
+pred_rp <- predict(mod_rp, testing)
+confusionMatrix(testing$classe, pred_rp)$overall
+```
+using rpart without any tuning is worse than toss a coin.
+
+#### Random forest
+```{r rf}
+pred_r <- predict(mod_r, testing)
+oose<-sum(pred_r != testing$classe)/dim(testing)[1]
+cmx<-confusionMatrix(testing$classe, pred_r)
+cmx$overall
+```
+Random forest results very good accuracy at `r cmx$overall[[1]]`, out of sample error rate `r oose`, as mentioned earlier, there are high correalted predictor, we try PCA preProcessing with same random forest setup, result below showed preProcess didnt gain accuracy.
+
+```{r rfpca}
+pred_rpca <- predict(mod_rpca, testing)
+oose<-sum(pred_rpca != testing$classe)/dim(testing)[1]
+cmx<-confusionMatrix(testing$classe, pred_rpca)
+cmx$overall
+```
+Accuracy: `r cmx$overall[[1]]`
+
+Out of sample error rate: `r oose`
+
+#### Boosting
+
+```{r gbm}
+pred_b <- predict(mod_b, testing)
+oose<-sum(pred_b != testing$classe)/dim(testing)[1]
+cmx<-confusionMatrix(testing$classe, pred_b)
+cmx$overall
+```
+Accuracy: `r cmx$overall[[1]]`
+
+Out of sample error rate: `r oose`
+
+Boosting has good result as while, not as accurate as random forest.
+
+
+### compare the models
+```{r comp}
+comparsion <- resamples(list(RF=mod_r, RFPAC=mod_rpca, Boosting=mod_b))
+dotplot(comparsion)
+```
+
+Visalized comparsion between models
+
+Conclusion: All model execpt "rpart" has good enough accuracy, random forest without pre-processing come out as best model.
+
+## validation
+Apply best model to validation
+```{r vali}
+predict(mod_r, vali)
+```
